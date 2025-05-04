@@ -85,8 +85,11 @@ async function main_process() {
             }
 
             request(requestOptions, function (error, response) {
-                if (error || !response) {
-                    console.warn(`[${rawProxy}] ERROR: ${error ? error.code : 'No response'} → switching proxy`);
+                if (error) {
+                    console.warn(`[${rawProxy}] ERROR: ${error.code} → switching proxy`);
+                    if (error.code === 'ECONNRESET') {
+                        console.warn(`[${rawProxy}] ECONNRESET error - retrying with a different proxy.`);
+                    }
                     proxies = proxies.remove_by_value(rawProxy);
                     return run();
                 }
