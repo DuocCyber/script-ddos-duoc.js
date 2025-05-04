@@ -9,7 +9,7 @@ let totalSent = 0;
 
 async function main_process() {
     if (process.argv.length !== 7) {
-        console.log(`Usage: node duoc_full_proxy.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
+        console.log(`Usage: node duoc.js <URL> <TIME> <THREADS> <bypass | proxy.txt> <RATE>`);
         process.exit(0);
     }
 
