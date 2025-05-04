@@ -62,8 +62,9 @@ async function main_process() {
 
             proxiedRequest(config, function (error, response) {
                 if (error || !response) {
+                    console.warn(`[${proxy}] ERROR: ${error ? error.code : 'No response'} → switching proxy`);
                     proxies = proxies.remove_by_value(proxy);
-                    return;
+                    return run(); // retry với proxy khác
                 }
 
                 console.log(response.statusCode, "HTTP_PROXY");
@@ -73,7 +74,9 @@ async function main_process() {
                         proxiedRequest(config);
                     }
                 } else {
+                    console.warn(`[${proxy}] BLOCKED with status ${response.statusCode} → removing`);
                     proxies = proxies.remove_by_value(proxy);
+                    return run(); // retry với proxy khác
                 }
             });
         } else {
